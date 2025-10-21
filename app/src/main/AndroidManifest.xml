@@ -6,11 +6,22 @@
         android:required="false" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+
+
 
     <application
         android:allowBackup="true"
         android:label="Taller3"
         android:theme="@style/Theme.Material3.DayNight.NoActionBar">
+
+        <!-- Configuración de OSMDroid -->
+        <meta-data
+            android:name="org.osmdroid.config"
+            android:resource="@xml/osmdroid_config" />
 
         <!-- FileProvider para guardar la foto temporalmente -->
         <provider
@@ -23,7 +34,10 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
-        <activity android:name=".ui.MainMapActivity" />
+        <activity
+            android:name=".ui.MainMapActivity"
+            android:label="Mapa"
+            android:exported="true" />
         <activity android:name=".ui.RegisterActivity" />
         <activity
             android:name=".ui.LoginActivity"
@@ -35,4 +49,5 @@
         </activity>
 
     </application>
+
 </manifest>

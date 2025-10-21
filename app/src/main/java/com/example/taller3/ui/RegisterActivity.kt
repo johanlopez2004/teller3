@@ -20,9 +20,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
 
+import android.location.Location
+import androidx.core.app.ActivityCompat
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
+
 class RegisterActivity : AppCompatActivity() {
 
     private lateinit var b: ActivityRegisterBinding
+
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
+
     private val repo = UserRepository()
 
     private var pickedImage: Uri? = null
@@ -71,6 +79,10 @@ class RegisterActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         b = ActivityRegisterBinding.inflate(layoutInflater)
         setContentView(b.root)
+
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        getCurrentLocation()
+
 
         // Botón: Galería
         b.btnSelectPhoto.setOnClickListener {
@@ -134,12 +146,14 @@ class RegisterActivity : AppCompatActivity() {
                     )
                     repo.saveUserProfile(profile)
 
-                    // 4) Éxito → entrar al mapa (no volver al login)
-                    Toaster.ok(this@RegisterActivity, "Usuario creado ✅")
-                    startActivity(Intent(this@RegisterActivity, MainMapActivity::class.java).apply {
+                    // 4) Éxito → volver al Login
+                    Toaster.ok(this@RegisterActivity, "Usuario creado ✅. Inicia sesión para continuar.")
+                    repo.signOut() // cerrar la sesión actual
+                    startActivity(Intent(this@RegisterActivity, LoginActivity::class.java).apply {
                         addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
                     })
                     finish()
+
 
                 } catch (e: Exception) {
                     val raw = e.message ?: "No se pudo completar el registro"
@@ -217,6 +231,45 @@ class RegisterActivity : AppCompatActivity() {
 
         return Pair(lat, lng)
     }
+
+    private fun getCurrentLocation() {
+        val fine = Manifest.permission.ACCESS_FINE_LOCATION
+        val coarse = Manifest.permission.ACCESS_COARSE_LOCATION
+
+        val hasFine = ActivityCompat.checkSelfPermission(this, fine) == PackageManager.PERMISSION_GRANTED
+        val hasCoarse = ActivityCompat.checkSelfPermission(this, coarse) == PackageManager.PERMISSION_GRANTED
+
+        if (!hasFine && !hasCoarse) {
+            // Pide permisos si no los tiene
+            ActivityCompat.requestPermissions(this, arrayOf(fine, coarse), 1001)
+            return
+        }
+
+        fusedLocationClient.lastLocation
+            .addOnSuccessListener { location: Location? ->
+                if (location != null) {
+                    b.etLat.setText(location.latitude.toString())
+                    b.etLng.setText(location.longitude.toString())
+                    Toaster.info(this, "Ubicación detectada automáticamente")
+                } else {
+                    Toaster.info(this, "No se pudo obtener ubicación")
+                }
+            }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 1001 && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            getCurrentLocation()
+        } else {
+            Toaster.error(this, "Permiso de ubicación denegado")
+        }
+    }
+
 
     private fun <T> fail(msg: String): T? {
         Toaster.error(this, msg)
