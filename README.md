@@ -1,4 +1,4 @@
-# Taller 2 - Computación Móvil
+# Taller 3 - Computación Móvil
 
 # Nombre del grupo
 Johann²
