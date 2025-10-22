@@ -1,20 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:orientation="vertical"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true">
 
+    <!-- Toolbar opcional -->
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbarSeguimiento"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="?attr/colorPrimary"
+        android:title="Seguimiento"
+        android:titleTextColor="@android:color/white"
+        app:titleTextColor="@android:color/white" />
+
+    <!-- MapView -->
     <org.osmdroid.views.MapView
         android:id="@+id/map"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="0dp"
+        android:layout_weight="1" />
 
+    <!-- Distancia -->
     <TextView
         android:id="@+id/tvDistancia"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Distancia: --"
-        android:background="@drawable/bg_card"
-        android:padding="8dp"
-        android:layout_margin="12dp"
-        android:layout_gravity="top|center"/>
-</FrameLayout>
+        android:text="Distancia: 0 m"
+        android:padding="16dp"
+        android:textSize="16sp" />
+
+</LinearLayout>

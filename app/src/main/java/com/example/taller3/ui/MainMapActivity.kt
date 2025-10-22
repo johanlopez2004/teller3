@@ -110,8 +110,8 @@ class MainMapActivity : AppCompatActivity() {
         // Guardar estado en Firebase (opcional)
         val user = Firebase.auth.currentUser
         user?.let {
-            val ref = Firebase.database.reference.child("usuarios").child(it.uid)
-            ref.child("disponible").setValue(if (disponible) "true" else "false")
+            val ref = Firebase.database.reference.child("t3_users").child(it.uid)
+            ref.child("disponible").setValue(if (disponible) true else false)
         }
     }
 

@@ -1,52 +1,43 @@
-package com.example.taller3.ui.adapters
+package com.example.taller3.ui
 
 import android.view.LayoutInflater
-import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
-import android.widget.ImageView
-import android.widget.TextView
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import coil.load
-import com.example.taller3.R
 import com.example.taller3.data.Usuario
+import com.example.taller3.databinding.ItemUsuarioBinding
 
 class UsuarioAdapter(
-    private val usuarios: MutableList<Usuario>,
-    private val onVerMapaClick: (Usuario) -> Unit
-) : RecyclerView.Adapter<UsuarioAdapter.UsuarioViewHolder>() {
+    private val onVerUbicacionClick: (Usuario) -> Unit
+) : ListAdapter<Usuario, UsuarioAdapter.UsuarioViewHolder>(DIFF_CALLBACK) {
 
-    inner class UsuarioViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        val imgUsuario: ImageView = itemView.findViewById(R.id.imgUsuario)
-        val txtNombre: TextView = itemView.findViewById(R.id.txtNombre)
-        val btnVerMapa: Button = itemView.findViewById(R.id.btnVerMapa)
+    companion object {
+        val DIFF_CALLBACK = object : DiffUtil.ItemCallback<Usuario>() {
+            override fun areItemsTheSame(oldItem: Usuario, newItem: Usuario) = oldItem.uid == newItem.uid
+            override fun areContentsTheSame(oldItem: Usuario, newItem: Usuario) = oldItem == newItem
+        }
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): UsuarioViewHolder {
-        val view = LayoutInflater.from(parent.context)
-            .inflate(R.layout.item_usuario, parent, false)
-        return UsuarioViewHolder(view)
+        val binding = ItemUsuarioBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        return UsuarioViewHolder(binding)
     }
 
     override fun onBindViewHolder(holder: UsuarioViewHolder, position: Int) {
-        val usuario = usuarios[position]
-        holder.txtNombre.text = "${usuario.nombre} ${usuario.apellido}".trim()
-
-        // Carga imagen con Coil (placeholder si no hay)
-        holder.imgUsuario.load(usuario.photoUrl) {
-            crossfade(true)
-            placeholder(R.drawable.ic_user_placeholder)
-            error(R.drawable.ic_user_placeholder)
-        }
-
-        holder.btnVerMapa.setOnClickListener { onVerMapaClick(usuario) }
+        holder.bind(getItem(position))
     }
 
-    override fun getItemCount(): Int = usuarios.size
-
-    fun updateList(newList: List<Usuario>) {
-        usuarios.clear()
-        usuarios.addAll(newList)
-        notifyDataSetChanged()
+    inner class UsuarioViewHolder(private val b: ItemUsuarioBinding) : RecyclerView.ViewHolder(b.root) {
+        fun bind(usuario: Usuario) {
+            b.tvNombre.text = usuario.nombre
+            b.imgFoto.load(usuario.photoUrl) {
+                placeholder(android.R.drawable.ic_menu_report_image)
+            }
+            b.btnVerUbicacion.setOnClickListener {
+                onVerUbicacionClick(usuario)
+            }
+        }
     }
 }

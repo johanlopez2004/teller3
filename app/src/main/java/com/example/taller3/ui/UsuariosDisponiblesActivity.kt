@@ -2,69 +2,50 @@ package com.example.taller3.ui
 
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import com.example.taller3.R
 import com.example.taller3.data.Usuario
-import com.example.taller3.data.FirebaseRefs
-import com.example.taller3.ui.adapters.UsuarioAdapter
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.ValueEventListener
+import com.example.taller3.databinding.ActivityUsuariosDisponiblesBinding
+import com.google.firebase.database.*
 
 class UsuariosDisponiblesActivity : AppCompatActivity() {
 
-    private lateinit var recycler: RecyclerView
+    private lateinit var b: ActivityUsuariosDisponiblesBinding
     private lateinit var adapter: UsuarioAdapter
-    private val listaUsuarios = mutableListOf<Usuario>()
-
-    private val usersRef = FirebaseRefs.users()
-
-    private val listener = object : ValueEventListener {
-        override fun onDataChange(snapshot: DataSnapshot) {
-            val nuevos = mutableListOf<Usuario>()
-            for (child in snapshot.children) {
-                val u = child.getValue(Usuario::class.java)
-                if (u != null && u.disponible) {
-                    nuevos.add(u)
-                }
-            }
-            listaUsuarios.clear()
-            listaUsuarios.addAll(nuevos)
-            adapter.updateList(listaUsuarios)
-        }
-
-        override fun onCancelled(error: DatabaseError) {
-            Log.e("UsuariosDisp", "DB cancelled: ${error.message}")
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_usuarios_disponibles)
+        b = ActivityUsuariosDisponiblesBinding.inflate(layoutInflater)
+        setContentView(b.root)
 
-        recycler = findViewById(R.id.recyclerUsuarios)
-        recycler.layoutManager = LinearLayoutManager(this)
-        adapter = UsuarioAdapter(listaUsuarios) { usuario ->
-            // Al pulsar "Ver posición" → abrir actividad de seguimiento
+        adapter = UsuarioAdapter { usuario ->
+            // Al hacer click en ver ubicación
             val intent = Intent(this, MapaSeguimientoActivity::class.java)
-            intent.putExtra("uidUsuario", usuario.uid)
-            intent.putExtra("nombreUsuario", "${usuario.nombre} ${usuario.apellido}".trim())
+            intent.putExtra("uid_seguido", usuario.uid)
             startActivity(intent)
         }
-        recycler.adapter = adapter
+
+        b.recyclerUsuarios.layoutManager = LinearLayoutManager(this)
+        b.recyclerUsuarios.adapter = adapter
+
+        loadUsuarios()
     }
 
-    override fun onStart() {
-        super.onStart()
-        // Escuchar cambios en usuarios (se filtrará por disponible)
-        usersRef.addValueEventListener(listener)
-    }
+    private fun loadUsuarios() {
+        val ref = FirebaseDatabase.getInstance().reference.child("t3_users")
+        ref.addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val listaUsuarios = mutableListOf<Usuario>()
+                for (child in snapshot.children) {
+                    val usuario = child.getValue(Usuario::class.java)
+                    if (usuario != null && usuario.disponible) {
+                        listaUsuarios.add(usuario)
+                    }
+                }
+                adapter.submitList(listaUsuarios)
+            }
 
-    override fun onStop() {
-        super.onStop()
-        usersRef.removeEventListener(listener)
+            override fun onCancelled(error: DatabaseError) {}
+        })
     }
 }

@@ -1,171 +1,105 @@
 package com.example.taller3.ui
 
-import android.Manifest
-import android.content.pm.PackageManager
+import android.location.Location
 import android.os.Bundle
 import android.os.Looper
-import android.widget.TextView
-import android.widget.Toast
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import com.example.taller3.R
-import com.example.taller3.data.FirebaseRefs
+import com.example.taller3.data.Usuario
+import com.example.taller3.databinding.ActivityMapaSeguimientoBinding
 import com.google.android.gms.location.*
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.ValueEventListener
-import org.osmdroid.config.Configuration
+import com.google.firebase.database.*
 import org.osmdroid.util.GeoPoint
-import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
-import com.google.firebase.database.DatabaseReference
-
 
 class MapaSeguimientoActivity : AppCompatActivity() {
 
-    private lateinit var map: MapView
-    private var markerSeguido: Marker? = null
-    private var markerYo: Marker? = null
-    private var miPosicion: GeoPoint? = null
+    private lateinit var b: ActivityMapaSeguimientoBinding
+    private lateinit var map: org.osmdroid.views.MapView
     private lateinit var fusedClient: FusedLocationProviderClient
-    private lateinit var seguimientoRefListener: ValueEventListener
-    private var seguimientoRef: DatabaseReference? = null
-    private var seguimientoRefPath: String? = null
+    private lateinit var locationCallback: LocationCallback
 
-    private lateinit var tvDistancia: TextView
+    private lateinit var seguidoUid: String
+    private lateinit var markerSeguido: Marker
+    private val listaUpdates = mutableListOf<ValueEventListener>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Configuration.getInstance().load(this, getSharedPreferences("osmdroid", MODE_PRIVATE))
-        setContentView(R.layout.activity_mapa_seguimiento)
+        b = ActivityMapaSeguimientoBinding.inflate(layoutInflater)
+        setContentView(b.root)
 
-        map = findViewById(R.id.map)
-        tvDistancia = findViewById(R.id.tvDistancia)
+        seguidoUid = intent.getStringExtra("uid_seguido") ?: return finish()
+
+        map = b.map
         map.setMultiTouchControls(true)
-        map.controller.setZoom(15.0)
+        map.controller.setZoom(14.0)
 
         fusedClient = LocationServices.getFusedLocationProviderClient(this)
+        startUserLocationUpdates()
+        startSeguimiento()
+    }
 
-        // Permisos
-        if (!hasLocationPermission()) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
-                3001
-            )
-        } else {
-            startLocationUpdates()
+    private fun startUserLocationUpdates() {
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000).build()
+        locationCallback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                result.lastLocation?.let {
+                    val point = GeoPoint(it.latitude, it.longitude)
+                    map.controller.setCenter(point)
+                    // marker de mi propia ubicación si quieres
+                }
+            }
         }
 
-        val uidUsuario = intent.getStringExtra("uidUsuario") ?: run {
-            Toast.makeText(this, "UID no recibido", Toast.LENGTH_SHORT).show()
-            finish()
-            return
-        }
-        val nombre = intent.getStringExtra("nombreUsuario") ?: "Usuario"
+        fusedClient.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
+    }
 
-        title = "Siguiendo: $nombre"
-
-        // Escuchar cambios en el perfil del usuario seguido dentro de t3_users (lat,lng)
-        val ref = FirebaseRefs.users().child(uidUsuario)
-        seguimientoRef = ref
-        ref.addValueEventListener(seguimientoRefListener)
-
-        seguimientoRefListener = object : ValueEventListener {
+    private fun startSeguimiento() {
+        val ref = FirebaseDatabase.getInstance().reference.child("t3_users").child(seguidoUid)
+        val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val lat = snapshot.child("lat").getValue(Double::class.java)
-                val lng = snapshot.child("lng").getValue(Double::class.java)
-                if (lat != null && lng != null) {
-                    val punto = GeoPoint(lat, lng)
-                    runOnUiThread {
-                        if (markerSeguido == null) {
-                            markerSeguido = Marker(map)
-                            markerSeguido!!.title = nombre
-                            markerSeguido!!.position = punto
-                            map.overlays.add(markerSeguido)
-                        } else {
-                            markerSeguido!!.position = punto
-                        }
-                        map.controller.setCenter(punto)
-                        actualizarDistancia(punto)
-                        map.invalidate()
+                val usuario = snapshot.getValue(Usuario::class.java) ?: return
+                val point = GeoPoint(usuario.lat, usuario.lng)
+
+                if (!::markerSeguido.isInitialized) {
+                    markerSeguido = Marker(map).apply {
+                        position = point
+                        title = usuario.nombre
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                        icon = ContextCompat.getDrawable(this@MapaSeguimientoActivity, R.drawable.ic_user_placeholder)
                     }
+                    map.overlays.add(markerSeguido)
+                } else {
+                    markerSeguido.position = point
+                }
+
+                // distancia a mi ubicación
+                fusedClient.lastLocation.addOnSuccessListener { loc ->
+                    val distancia = FloatArray(1)
+                    Location.distanceBetween(
+                        loc.latitude, loc.longitude,
+                        usuario.lat, usuario.lng,
+                        distancia
+                    )
+                    b.tvDistancia.text = "Distancia: ${distancia[0].toInt()} m"
                 }
             }
 
-            override fun onCancelled(error: DatabaseError) {
-                // no-op
-            }
+            override fun onCancelled(error: DatabaseError) {}
         }
-        ref.addValueEventListener(seguimientoRefListener)
-        FirebaseRefs.users().root.child(seguimientoRefPath!!).removeEventListener(seguimientoRefListener)
-    }
-
-    private fun actualizarDistancia(posSeguido: GeoPoint) {
-        miPosicion?.let { mi ->
-            val metros = mi.distanceToAsDouble(posSeguido)
-            tvDistancia.text = "Distancia: %.1f m".format(metros)
-        }
-    }
-
-    private fun hasLocationPermission(): Boolean {
-        val fine = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
-        return fine == PackageManager.PERMISSION_GRANTED
-    }
-
-    // Pedimos actualizaciones precisas para obtener mi ubicación y calcular distancia en tiempo real
-    private lateinit var locationCallback: LocationCallback
-    private fun startLocationUpdates() {
-        try {
-            val req = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 2000L).build()
-            locationCallback = object : LocationCallback() {
-                override fun onLocationResult(result: LocationResult) {
-                    val l = result.lastLocation ?: return
-                    miPosicion = GeoPoint(l.latitude, l.longitude)
-                    runOnUiThread {
-                        if (markerYo == null) {
-                            markerYo = Marker(map)
-                            markerYo!!.title = "Tú"
-                            markerYo!!.position = miPosicion
-                            map.overlays.add(markerYo)
-                        } else {
-                            markerYo!!.position = miPosicion
-                        }
-                        actualizarDistancia(markerSeguido?.position ?: return@runOnUiThread)
-                        map.invalidate()
-                    }
-                }
-            }
-            fusedClient.requestLocationUpdates(req, locationCallback, Looper.getMainLooper())
-        } catch (e: SecurityException) {
-            e.printStackTrace()
-        }
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 3001 && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            startLocationUpdates()
-        } else {
-            Toast.makeText(this, "Permiso de ubicación denegado", Toast.LENGTH_SHORT).show()
-        }
+        ref.addValueEventListener(listener)
+        listaUpdates.add(listener)
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        try {
-            if (::fusedClient.isInitialized && ::locationCallback.isInitialized) {
-                fusedClient.removeLocationUpdates(locationCallback)
-            }
-        } catch (e: Exception) {}
-
-        // Eliminar listener Firebase correctamente
-        try {
-            seguimientoRef?.removeEventListener(seguimientoRefListener)
-        } catch (e: Exception) {}
+        if (::fusedClient.isInitialized && ::locationCallback.isInitialized) {
+            fusedClient.removeLocationUpdates(locationCallback)
+        }
+        listaUpdates.forEach { listener ->
+            FirebaseDatabase.getInstance().reference.child("t3_users")
+                .child(seguidoUid).removeEventListener(listener)
+        }
     }
-
 }
